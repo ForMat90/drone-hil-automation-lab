@@ -2,13 +2,15 @@
 
 **Test automatici end-to-end su un drone simulato in Gazebo, pilotato via ROS 2 e verificato con Playwright.**
 
+[![unit tests](https://github.com/ForMat90/drone-hil-automation-lab/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/ForMat90/drone-hil-automation-lab/actions/workflows/unit-tests.yml)
+
 [English version](README.en.md) · [Come avviare](#cosa-serve-installato) · [Come comunicano i pezzi](#come-parlano-tra-loro-i-pezzi)
 
-<!-- TODO: registrare la GIF (Gazebo a sinistra, terminale dei test a destra), salvarla in docs/demo.gif e togliere i commenti dalla riga sotto.
 ![Demo: il drone eseguito dai test automatici in Gazebo](docs/demo.gif)
--->
 
-Lancio `npx playwright test` e il drone si muove da solo nella scena 3D: va a sinistra, a destra, sale, scende, ruota, e a ogni manovra un assert verifica che abbia fatto davvero quello che il comando prometteva.
+*Nessuno sta toccando la tastiera: è `npx playwright test` che muove il drone. Video a velocità reale: [docs/demo.mp4](docs/demo.mp4).*
+
+Lancio `npx playwright test` e il drone si muove da solo nella scena 3D: va a sinistra, a destra, avanti, indietro, sale, scende e ruota. A ogni manovra un assert verifica che abbia fatto davvero quello che il comando prometteva.
 
 ### Il problema interessante
 
@@ -33,6 +35,29 @@ npx playwright test  ──HTTP──▶  ponte Python (:8765)  ──ROS 2─�
 ---
 
 Il resto di questa pagina è la guida pratica: come installare, come pilotare il drone a mano e come lanciare i test.
+
+---
+
+## Com'è organizzato il progetto
+
+```
+drone-hil-automation-lab/
+├─ e2e/                          test automatici Playwright (JavaScript)
+│  ├─ drone-commands.spec.js     i 9 test e i loro assert
+│  └─ support/                   client HTTP + regole dei controlli
+├─ src/drone_simulator/
+│  ├─ flight_control.py          forze, velocità massime, frenata, limiti dell'area
+│  ├─ simulator.py               modello di volo offline (quello degli unit test)
+│  ├─ gui.py                     simulatore 2D leggero, senza Gazebo
+│  └─ ros/                       i nodi che parlano con Gazebo
+│     ├─ bridge_server.py        il ponte: API HTTP ⇄ ROS
+│     ├─ manual_control.py       tastiera ⇄ ROS, per volare a mano
+│     └─ boundary_guard.py       riporta al centro il drone se esce dall'area
+├─ scripts/                      comandi di avvio (.ps1 per Windows, .sh per Linux)
+├─ gazebo/worlds/drone_lab.world il mondo 3D: drone, prato, alberi, capannone, recinzione
+├─ tests/                        unit test pytest
+└─ docs/                         demo e guida di installazione di ROS/Gazebo
+```
 
 ---
 
@@ -122,7 +147,7 @@ Comandi utili:
 
 ```powershell
 npx playwright test                          # tutti i test
-npx playwright test -g "A:"                  # solo il test del comando A
+npx playwright test -g "A:"                  # solo i test del comando A
 npx playwright test --reporter=html          # report navigabile
 ```
 
@@ -134,7 +159,7 @@ Questi **non aprono Gazebo** e durano meno di un secondo:
 
 ```powershell
 cd C:\Drone-HIL-Automation-Lab
-python -m pytest tests/test_drone_simulator.py
+python -m pytest
 ```
 
 ---
@@ -145,15 +170,15 @@ Qui sta il punto che confonde di più, quindi con calma.
 
 Il problema: **Gazebo e ROS girano dentro Linux (WSL) e parlano "ROS"**, mentre **Playwright gira su Windows e parla HTTP**. Sono due mondi diversi, con due linguaggi diversi. Non possono chiamarsi direttamente.
 
-La soluzione è la stessa che si usa tra microservizi: mettere in mezzo **un piccolo servizio con delle API**. Quel servizio è [scripts/drone_web_control.py](scripts/drone_web_control.py): riceve richieste HTTP e le ritrasmette a ROS.
+La soluzione è la stessa che si usa tra microservizi: mettere in mezzo **un piccolo servizio con delle API**. Quel servizio è [src/drone_simulator/ros/bridge_server.py](src/drone_simulator/ros/bridge_server.py): riceve richieste HTTP e le ritrasmette a ROS.
 
 ```
-  npx playwright test            (Windows, JavaScript)
+  npx playwright test                    (Windows, JavaScript)
             │
             │  chiamate HTTP
             ▼
-  http://127.0.0.1:8765          <-- le API le abbiamo scritte noi
-  scripts/drone_web_control.py   (Linux/WSL, Python)
+  http://127.0.0.1:8765                  <-- le API le abbiamo scritte noi
+  src/drone_simulator/ros/bridge_server.py   (Linux/WSL, Python)
             │
             │  messaggi ROS
             ▼
@@ -180,9 +205,8 @@ Esempio di un test, passo per passo:
 
 ### Due cose importanti
 
-- **Playwright qui non apre nessun browser.** Di solito Playwright serve per testare siti web cliccando i bottoni; in questo progetto lo usiamo solo come strumento che fa chiamate API e scrive gli assert. Il "risultato" non si guarda nella pagina, si guarda in Gazebo e nei numeri della posizione.
-- **L'indirizzo `http://127.0.0.1:8765` non è "il sito del drone".** È solo il ponte tra Windows e Linux. Se lo apri nel browser trovi una paginetta con dei pulsanti, comoda per provare a mano, ma i test automatici non la usano: chiamano direttamente le API.
-- Il servizio ponte **parte da solo** quando lanci i test (lo avvia [e2e/global-setup.js](e2e/global-setup.js)). Se vuoi avviarlo a mano: `.\scripts\run_web_control_windows.ps1`.
+- **Playwright qui non apre nessun browser.** Di solito Playwright serve per testare siti web cliccando i bottoni; in questo progetto lo usiamo solo come strumento che fa chiamate API e scrive gli assert. Il "risultato" non si guarda in una pagina, si guarda in Gazebo e nei numeri della posizione.
+- **L'indirizzo `http://127.0.0.1:8765` non è un sito.** È solo il ponte tra Windows e Linux: se lo apri nel browser ti risponde un JSON con l'elenco delle API. Il ponte **parte da solo** quando lanci i test (lo avvia [e2e/support/global-setup.js](e2e/support/global-setup.js)). Se vuoi avviarlo a mano: `.\scripts\run_bridge_windows.ps1`.
 
 ---
 
@@ -195,18 +219,16 @@ Ogni comando resta premuto **5 secondi**: abbastanza per vedere il movimento a o
 
 | Test | Cosa controlla |
 |---|---|
-| A: sinistra 5s e ritorno al centro | il drone va a sinistra; arrivato a fine percorso torna al centro |
-| D: destra 5s | si sposta a destra |
-| W: avanti 5s | si sposta in avanti |
-| S: indietro 5s | si sposta indietro |
-| R: su 5s | sale di quota |
-| F: giù 5s | scende di quota |
+| A / D: sinistra, destra | il drone si sposta di lato, nel verso giusto |
+| W / S: avanti, indietro | il drone si sposta in avanti e indietro |
+| R / F: su, giù | il drone cambia quota |
+| A: arrivato a fine percorso torna al centro | spingendo fino al limite dell'area, il drone viene riportato al centro |
 | rilascio: il drone si ferma | dopo aver lasciato il comando la velocità scende quasi a zero e non continua a scivolare |
-| Q e E cambiano lo yaw | il drone ruota su sé stesso |
+| Q e E fanno ruotare il drone | il drone ruota su sé stesso (yaw) |
 
 ### Unit test — [tests/test_drone_simulator.py](tests/test_drone_simulator.py)
 
-Controllano la logica pura, senza Gazebo: stati del drone (fermo, armato, decollo, volo, atterraggio, emergenza), decollo, atterraggio, stop di emergenza, i limiti dell'area e il fatto che un comando tenuto premuto si fermi al rilascio.
+Controllano la logica pura, senza Gazebo: stati del drone (fermo, armato, decollo, volo, atterraggio, emergenza), decollo, atterraggio, stop di emergenza, i limiti dell'area e il fatto che un comando tenuto premuto si fermi al rilascio. Girano anche su GitHub a ogni push (è il badge in cima alla pagina).
 
 ---
 
@@ -216,40 +238,32 @@ Controllano la logica pura, senza Gazebo: stati del drone (fermo, armato, decoll
 |---|---|
 | [scripts/run_gazebo_windows.ps1](scripts/run_gazebo_windows.ps1) | apre Gazebo dal terminale Windows |
 | [scripts/run_manual_control_windows.ps1](scripts/run_manual_control_windows.ps1) | avvia il pilotaggio con la tastiera |
-| [scripts/manual_drone_control.py](scripts/manual_drone_control.py) | legge i tasti e manda le spinte a ROS |
-| [scripts/drone_web_control.py](scripts/drone_web_control.py) | il ponte: API HTTP ⇄ ROS, porta 8765 |
-| [scripts/run_web_control_windows.ps1](scripts/run_web_control_windows.ps1) | avvia il ponte a mano (di solito non serve) |
-| [scripts/gazebo_boundary_guard.py](scripts/gazebo_boundary_guard.py) | riporta al centro il drone se esce dall'area |
+| [scripts/run_bridge_windows.ps1](scripts/run_bridge_windows.ps1) | avvia il ponte a mano (di solito non serve) |
+| [scripts/run_gazebo_3d.sh](scripts/run_gazebo_3d.sh) | lo script Linux che lancia davvero Gazebo |
+| [src/drone_simulator/ros/bridge_server.py](src/drone_simulator/ros/bridge_server.py) | il ponte: API HTTP ⇄ ROS, porta 8765 |
+| [src/drone_simulator/ros/manual_control.py](src/drone_simulator/ros/manual_control.py) | legge i tasti e manda le spinte a ROS |
+| [src/drone_simulator/flight_control.py](src/drone_simulator/flight_control.py) | forze dei comandi, velocità massima, frenata, limiti dell'area |
 | [e2e/drone-commands.spec.js](e2e/drone-commands.spec.js) | i test automatici e i loro controlli |
-| [e2e/drone-api.js](e2e/drone-api.js) | le funzioni riutilizzabili: tieni premuto, leggi posizione, reset |
-| [e2e/global-setup.js](e2e/global-setup.js) | prima dei test: trova o avvia il ponte |
-| [e2e/global-teardown.js](e2e/global-teardown.js) | dopo i test: ferma il drone |
+| [e2e/support/drone-api.js](e2e/support/drone-api.js) | le chiamate al ponte: tieni premuto, leggi posizione, reset |
+| [e2e/support/flight-checks.js](e2e/support/flight-checks.js) | le regole dei controlli: "si è mosso verso sinistra?", "è fermo?" |
+| [e2e/support/global-setup.js](e2e/support/global-setup.js) | prima dei test: trova o avvia il ponte |
 | [playwright.config.js](playwright.config.js) | configurazione dei test (timeout, ordine, report) |
 | [tests/test_drone_simulator.py](tests/test_drone_simulator.py) | unit test della logica |
-| [src/drone_simulator/flight_control.py](src/drone_simulator/flight_control.py) | forze dei comandi, velocità massima, frenata, limiti dell'area |
-| [src/drone_simulator/simulator.py](src/drone_simulator/simulator.py) | la logica del drone usata dagli unit test |
-| [gazebo/worlds/drone_lab.world](gazebo/worlds/drone_lab.world) | il mondo 3D: drone, alberi, capannone, recinzione |
-| [scripts/run_gazebo_3d.sh](scripts/run_gazebo_3d.sh) | lo script Linux che lancia davvero Gazebo |
+| [gazebo/worlds/drone_lab.world](gazebo/worlds/drone_lab.world) | il mondo 3D |
 
-Se vuoi cambiare quanto è veloce o reattivo il drone, tocca **un solo file**: `src/drone_simulator/flight_control.py`. Le stesse impostazioni valgono sia per il pilotaggio a mano sia per i test.
+Se vuoi cambiare quanto è veloce o reattivo il drone, tocca **un solo file**: `src/drone_simulator/flight_control.py`. Contiene due gruppi di impostazioni: quelle "a pressione continua" usate dal ponte e dai test, e quelle "a impulso" usate dalla tastiera, che hanno bisogno di una spinta più forte perché ogni tasto premuto vale una spinta sola.
 
 ---
 
 ## Extra
 
-**Protezione automatica dell'area** (facoltativa, terzo terminale):
+**Protezione automatica dell'area** (facoltativa, in un altro terminale). Serve solo se tieni Gazebo aperto senza né tastiera né ponte, perché quei due si riportano già al centro da soli:
 
 ```powershell
-wsl -d Ubuntu-22.04 -- bash -lc "source /opt/ros/humble/setup.bash; python3 /mnt/c/Drone-HIL-Automation-Lab/scripts/gazebo_boundary_guard.py"
+wsl -d Ubuntu-22.04 -- bash -lc "source /opt/ros/humble/setup.bash; cd /mnt/c/Drone-HIL-Automation-Lab/src; python3 -m drone_simulator.ros.boundary_guard"
 ```
 
-**Vecchio test di movimento** (controlla solo lo spostamento in avanti, con Gazebo aperto):
-
-```powershell
-.\scripts\run_movement_test_windows.ps1
-```
-
-**Simulatore 2D leggero** (finestra Python, niente Gazebo, utile per provare la logica):
+**Simulatore 2D leggero** (finestra Python, niente Gazebo, utile per provare la logica di volo):
 
 ```powershell
 python run_simulator.py
@@ -278,8 +292,6 @@ Cose che si possono aggiungere per rendere il progetto più solido:
 - **Un test che fallisce apposta**, per essere sicuri che i controlli funzionino davvero e non passino sempre.
 - **Test di collisione**: verificare che il drone non attraversi il capannone o gli alberi.
 - **Test di atterraggio sulla piazzola**, con tolleranza sulla precisione.
-- **Report salvati**: tenere i risultati di ogni esecuzione (`npx playwright test --reporter=html`) per confrontare nel tempo.
-- **Esecuzione automatica su CI**: oggi serve un PC con Gazebo aperto; si può far girare Gazebo senza finestra (`gui:=false`) su un server.
-- **Un `.gitignore`** per non versionare `node_modules/`, `playwright-report/`, `test-results/` e `.run/`.
+- **End-to-end anche in CI**: oggi su GitHub girano solo gli unit test, perché i test E2E hanno bisogno di Gazebo aperto. Si può far girare Gazebo senza finestra (`gui:=false`) su un server dedicato.
 - **Un solo comando di avvio** che apra Gazebo, il ponte e i test in sequenza, per chi non vuole gestire tre terminali.
 - **Un autopilota vero (PX4/SITL)** se in futuro servisse simulare anche il firmware di volo: più realistico, ma molto più pesante da installare.

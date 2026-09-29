@@ -3,8 +3,7 @@
 This is the real path to a proper 3D drone simulator. It is heavier than the local Tkinter version, but it is the correct setup if you want a Gazebo-like environment and real flight testing.
 
 Important:
-- the current WSL environment is Ubuntu 26.04 and does not expose a supported Gazebo/ROS package set for this workflow
-- the correct and reproducible setup is Ubuntu 22.04 LTS + ROS 2 Humble + Gazebo
+- the reproducible setup is Ubuntu 22.04 LTS + ROS 2 Humble + Gazebo 11; newer Ubuntu releases do not expose a supported package set for this workflow
 - this guide is intended for a clean Linux environment, ideally inside WSL2
 
 ## 1) Install WSL2 and Ubuntu 22.04
@@ -99,28 +98,32 @@ source /opt/ros/humble/setup.bash
 bash scripts/run_gazebo_3d.sh
 ```
 
-The world contains a ground plane, landing pad, trees, a warehouse and a drone model. For a quick black-box test, keep Gazebo open and run in a second terminal:
+The world contains a ground plane, landing pad, trees, a warehouse and a drone model.
+
+To fly the drone manually, keep Gazebo open and run in a second terminal:
 
 ```bash
 source /opt/ros/humble/setup.bash
-cd /mnt/c/Drone-HIL-Automation-Lab
-python3 tests/gazebo_smoke_test.py
+cd /mnt/c/Drone-HIL-Automation-Lab/src
+python3 -m drone_simulator.ros.manual_control
 ```
 
-The smoke test checks that the drone model is loaded and that Gazebo publishes its odometry at 3 m. The movement test applies a controlled force and verifies a positive X displacement. To drive the drone manually, run `python3 scripts/manual_drone_control.py` in a second terminal. Keys are `w/s`, `a/d`, `r/f` and `q/e`.
+Keys are `w/s`, `a/d`, `r/f` and `q/e`. To run the automated end-to-end tests instead, close manual control and run `npx playwright test` from Windows: see the main [README](../README.en.md).
 
-The current keyboard control is direct force control, with a 20 x 16 m visible area and a 1-8 m altitude envelope. It is not a complete flight controller. Stabilized flight, assisted takeoff/landing and collision avoidance require PX4/SITL or a dedicated ROS 2 controller. PX4 Position mode is the real-world reference: centered sticks hold position, while parameters limit acceleration, velocity and vertical speed.
+The keyboard control is direct force control, with a 20 x 16 m visible area and a 1-8 m altitude envelope. It is not a complete flight controller. Stabilized flight, assisted takeoff/landing and collision avoidance require PX4/SITL or a dedicated ROS 2 controller. PX4 Position mode is the real-world reference: centered sticks hold position, while parameters limit acceleration, velocity and vertical speed.
 
-Run `python3 scripts/gazebo_boundary_guard.py` in a separate terminal to enforce the envelope continuously, even when the keyboard controller is closed.
+Run `python3 -m drone_simulator.ros.boundary_guard` in a separate terminal to enforce the envelope continuously, even when neither the keyboard controller nor the bridge is running.
 
 ## 8) Modify the simulator and tests
 
 - `gazebo/worlds/drone_lab.world`: visual world and drone model.
 - The world includes a visible 20 x 16 m boundary; `reset_world` restores the drone to its initial center pose.
-- `tests/gazebo_smoke_test.py`: integration commands sent to the running Gazebo instance.
-- `scripts/manual_drone_control.py`: keyboard force controller with boundary recovery.
+- `src/drone_simulator/flight_control.py`: forces, speed caps and the flight envelope, shared by every control path.
+- `src/drone_simulator/ros/manual_control.py`: keyboard force controller with boundary recovery.
+- `src/drone_simulator/ros/bridge_server.py`: HTTP bridge used by the Playwright tests.
 - `src/drone_simulator/simulator.py`: offline flight state machine.
 - `tests/test_drone_simulator.py`: offline unit tests.
+- `e2e/drone-commands.spec.js`: end-to-end tests against the running Gazebo world.
 
 ## 9) Optional: PX4 SITL integration
 

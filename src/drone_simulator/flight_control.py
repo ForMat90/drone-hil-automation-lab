@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import math
 
-# Slow enough that a 5 s hold stays inside the fence and stays visible.
+# Hold-style control (HTTP bridge, Playwright tests): a force is applied for as
+# long as the command is held, so it must be slow enough that a 5 s hold stays
+# inside the fence and stays visible.
 FORCE_XY = 2.5
 FORCE_Z = 3.0
 YAW_TORQUE = 0.5
@@ -13,11 +15,21 @@ MAX_SPEED_XY = 0.7
 MAX_SPEED_Z = 0.45
 MAX_SANE_SPEED = 6.0
 
+# Tap-style control (keyboard): every keypress is a single short impulse, so it
+# needs a much bigger push than the hold-style forces above.
+MANUAL_IMPULSE_XY = 18.0
+MANUAL_IMPULSE_Z = 24.0
+MANUAL_YAW_TORQUE = 1.5
+
+# Flight envelope: smaller than the fence you see in Gazebo, so the drone can be
+# recovered before it gets hard to see or control.
 MAX_X = 9.0
 MAX_Y = 7.0
 MIN_Z = 1.0
 MAX_Z = 8.0
+SPAWN_ALTITUDE_M = 3.0
 CENTER_TOLERANCE_M = 1.25
+CENTER_TOLERANCE_Z = 1.5
 
 # force x, y, z, yaw torque
 COMMAND_WRENCH: dict[str, tuple[float, float, float, float]] = {
@@ -31,13 +43,15 @@ COMMAND_WRENCH: dict[str, tuple[float, float, float, float]] = {
     "e": (0.0, 0.0, 0.0, -YAW_TORQUE),
 }
 
-AXIS_EXPECTATION = {
-    "a": ("y", 1),
-    "d": ("y", -1),
-    "w": ("x", 1),
-    "s": ("x", -1),
-    "r": ("z", 1),
-    "f": ("z", -1),
+MANUAL_WRENCH: dict[str, tuple[float, float, float, float]] = {
+    "w": (MANUAL_IMPULSE_XY, 0.0, 0.0, 0.0),
+    "s": (-MANUAL_IMPULSE_XY, 0.0, 0.0, 0.0),
+    "a": (0.0, MANUAL_IMPULSE_XY, 0.0, 0.0),
+    "d": (0.0, -MANUAL_IMPULSE_XY, 0.0, 0.0),
+    "r": (0.0, 0.0, MANUAL_IMPULSE_Z, 0.0),
+    "f": (0.0, 0.0, -MANUAL_IMPULSE_Z, 0.0),
+    "q": (0.0, 0.0, 0.0, MANUAL_YAW_TORQUE),
+    "e": (0.0, 0.0, 0.0, -MANUAL_YAW_TORQUE),
 }
 
 
@@ -93,7 +107,7 @@ def clamp_hold_wrench(
 
 
 def is_outside_area(x: float, y: float, z: float) -> bool:
-    x, y, z = finite_number(x), finite_number(y), finite_number(z, 3.0)
+    x, y, z = finite_number(x), finite_number(y), finite_number(z, SPAWN_ALTITUDE_M)
     return abs(x) > MAX_X or abs(y) > MAX_Y or z < MIN_Z or z > MAX_Z
 
 
@@ -101,4 +115,4 @@ def is_near_center(x: float, y: float, z: float | None = None) -> bool:
     near_xy = abs(x) <= CENTER_TOLERANCE_M and abs(y) <= CENTER_TOLERANCE_M
     if z is None:
         return near_xy
-    return near_xy and abs(z - 3.0) <= 1.5
+    return near_xy and abs(z - SPAWN_ALTITUDE_M) <= CENTER_TOLERANCE_Z

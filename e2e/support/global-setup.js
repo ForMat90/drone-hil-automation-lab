@@ -1,11 +1,14 @@
+// Before any test: find the bridge, or start it inside WSL and wait for it.
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { execSync, spawn } = require("child_process");
 const { saveControlUrl } = require("./control-url");
 
-const ROOT = path.join(__dirname, "..");
+const ROOT = path.join(__dirname, "..", "..");
 const DISTRO = "Ubuntu-22.04";
+const PORT = 8765;
+const START_TIMEOUT_MS = 45000;
 
 function windowsToWsl(winPath) {
   const resolved = path.resolve(winPath);
@@ -30,23 +33,24 @@ function poseReady(baseUrl) {
   });
 }
 
+/** Depending on the WSL networking mode the bridge answers on localhost or on the WSL IP. */
 function candidateUrls() {
-  const urls = ["http://127.0.0.1:8765", "http://localhost:8765"];
+  const urls = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`];
   try {
     const ip = execSync(`wsl.exe -d ${DISTRO} -- hostname -I`, { encoding: "utf8" })
       .trim()
       .split(/\s+/)
       .find((part) => part && !part.startsWith("::"));
     if (ip) {
-      urls.push(`http://${ip}:8765`);
+      urls.push(`http://${ip}:${PORT}`);
     }
   } catch {
-    /* WSL IP optional */
+    /* the WSL IP is a bonus, not a requirement */
   }
   return urls;
 }
 
-async function findControl() {
+async function findBridge() {
   for (const url of candidateUrls()) {
     if (await poseReady(url)) {
       return url;
@@ -55,11 +59,11 @@ async function findControl() {
   return null;
 }
 
-function startWebControl() {
+function startBridge() {
   const linuxRepo = windowsToWsl(ROOT);
   const logDir = path.join(ROOT, ".run");
   fs.mkdirSync(logDir, { recursive: true });
-  const log = fs.openSync(path.join(logDir, "web_control.log"), "a");
+  const log = fs.openSync(path.join(logDir, "bridge.log"), "a");
   const child = spawn(
     "wsl.exe",
     [
@@ -68,33 +72,26 @@ function startWebControl() {
       "--",
       "bash",
       "-lc",
-      `source /opt/ros/humble/setup.bash; python3 -u '${linuxRepo}/scripts/drone_web_control.py'`,
+      // Started from src/ so "python3 -m" finds the package without touching the ROS PYTHONPATH.
+      `source /opt/ros/humble/setup.bash; cd '${linuxRepo}/src'; python3 -u -m drone_simulator.ros.bridge_server`,
     ],
-    {
-      cwd: ROOT,
-      detached: true,
-      stdio: ["ignore", log, log],
-      windowsHide: true,
-    }
+    { cwd: ROOT, detached: true, stdio: ["ignore", log, log], windowsHide: true }
   );
   child.unref();
 }
 
 module.exports = async function globalSetup() {
-  let url = await findControl();
+  let url = await findBridge();
   if (!url) {
-    startWebControl();
-    const deadline = Date.now() + 45000;
-    while (Date.now() < deadline) {
-      url = await findControl();
-      if (url) {
-        break;
-      }
+    startBridge();
+    const deadline = Date.now() + START_TIMEOUT_MS;
+    while (!url && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
+      url = await findBridge();
     }
   }
   if (!url) {
-    throw new Error("Gazebo deve essere aperto. Poi: npx playwright test");
+    throw new Error("Gazebo deve essere aperto. Apri .\\scripts\\run_gazebo_windows.ps1, poi: npx playwright test");
   }
   saveControlUrl(url);
   process.env.DRONE_CONTROL_URL = url;

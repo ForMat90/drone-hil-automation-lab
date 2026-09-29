@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Keyboard controller for the demo Gazebo drone."""
+"""Keyboard controller for the Gazebo drone: one keypress, one impulse.
+
+This is the manual flight path and it talks to ROS directly, with no HTTP and no
+browser in between. The Playwright tests use bridge_server.py instead.
+"""
 
 import sys
 import time
@@ -9,13 +13,8 @@ from geometry_msgs.msg import Wrench
 from nav_msgs.msg import Odometry
 from std_srvs.srv import Empty
 
+from ..flight_control import MANUAL_WRENCH, SPAWN_ALTITUDE_M, is_outside_area
 
-# These limits are smaller than the visible fence so the controller can recover
-# the drone before it becomes difficult to see or control.
-MAX_X = 9.0
-MAX_Y = 7.0
-MIN_Z = 1.0
-MAX_Z = 8.0
 HELP = "w/s: avanti/indietro | a/d: sinistra/destra | r/f: su/giu | q/e: yaw | x: stop | Ctrl+C: esci"
 
 
@@ -39,7 +38,7 @@ def main() -> int:
     node = rclpy.create_node("manual_drone_control")
     publisher = node.create_publisher(Wrench, "/drone/gazebo_ros_force", 10)
     reset_client = node.create_client(Empty, "/reset_world")
-    position = {"x": 0.0, "y": 0.0, "z": 3.0}
+    position = {"x": 0.0, "y": 0.0, "z": SPAWN_ALTITUDE_M}
 
     def on_odom(message: Odometry) -> None:
         position["x"] = message.pose.pose.position.x
@@ -51,45 +50,28 @@ def main() -> int:
     while publisher.get_subscription_count() < 1 and time.monotonic() < deadline:
         rclpy.spin_once(node, timeout_sec=0.1)
     if publisher.get_subscription_count() < 1:
-        node.get_logger().error("Gazebo non e attivo: avvia prima run_gazebo_3d.sh")
+        node.get_logger().error("Gazebo non e attivo: avvia prima run_gazebo_windows.ps1")
         return 1
 
     print(HELP, flush=True)
-    forces = {
-        "w": (18.0, 0.0, 0.0),
-        "s": (-18.0, 0.0, 0.0),
-        "a": (0.0, 18.0, 0.0),
-        "d": (0.0, -18.0, 0.0),
-        "r": (0.0, 0.0, 24.0),
-        "f": (0.0, 0.0, -24.0),
-    }
-    torques = {"q": 1.5, "e": -1.5}
-
     try:
         while rclpy.ok():
             key = read_key().lower()
             message = Wrench()
-            if key == "x":
-                publisher.publish(message)
-                continue
             if key == "\x03":
                 break
-            if key not in forces and key not in torques:
+            if key not in MANUAL_WRENCH:
+                # Unknown key or "x": publish a null wrench, which stops pushing.
                 publisher.publish(message)
                 continue
 
-            force = forces.get(key, (0.0, 0.0, 0.0))
-            message.force.x, message.force.y, message.force.z = force
-            message.torque.z = torques.get(key, 0.0)
+            fx, fy, fz, tz = MANUAL_WRENCH[key]
+            message.force.x, message.force.y, message.force.z = fx, fy, fz
+            message.torque.z = tz
             publisher.publish(message)
             rclpy.spin_once(node, timeout_sec=0.01)
-            outside_area = (
-                abs(position["x"]) > MAX_X
-                or abs(position["y"]) > MAX_Y
-                or position["z"] < MIN_Z
-                or position["z"] > MAX_Z
-            )
-            if outside_area:
+
+            if is_outside_area(position["x"], position["y"], position["z"]):
                 publisher.publish(Wrench())
                 if reset_client.wait_for_service(timeout_sec=1.0):
                     reset_client.call_async(Empty.Request())

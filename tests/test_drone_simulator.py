@@ -1,6 +1,14 @@
 import pytest
 
-from drone_simulator.flight_control import brake_wrench, clamp_hold_wrench, command_wrench, is_near_center, is_outside_area
+from drone_simulator.flight_control import (
+    COMMAND_WRENCH,
+    MANUAL_WRENCH,
+    brake_wrench,
+    clamp_hold_wrench,
+    command_wrench,
+    is_near_center,
+    is_outside_area,
+)
 from drone_simulator.simulator import DroneSimulator, DroneState
 
 
@@ -123,3 +131,11 @@ def test_a_command_pushes_left_and_release_brakes():
 def test_bounds_and_center_helpers():
     assert is_outside_area(10.0, 0.0, 3.0)
     assert is_near_center(0.1, -0.2, 3.1)
+
+
+def test_keyboard_and_bridge_cover_the_same_commands():
+    assert set(MANUAL_WRENCH) == set(COMMAND_WRENCH)
+    # One keypress is a single impulse, so it must push harder than the force
+    # the bridge keeps applied for as long as the command is held.
+    assert MANUAL_WRENCH["a"][1] > COMMAND_WRENCH["a"][1]
+    assert MANUAL_WRENCH["r"][2] > COMMAND_WRENCH["r"][2]

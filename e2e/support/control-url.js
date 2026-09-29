@@ -1,7 +1,10 @@
+// The bridge URL is discovered in globalSetup, which runs in another process
+// than the tests, so it is handed over through a file.
 const fs = require("fs");
 const path = require("path");
 
-const FILE = path.join(__dirname, "..", ".run", "control-url.txt");
+const FILE = path.join(__dirname, "..", "..", ".run", "control-url.txt");
+const FALLBACK = "http://127.0.0.1:8765";
 
 function saveControlUrl(url) {
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
@@ -15,9 +18,9 @@ function getControlUrl() {
       return value.replace(/\/$/, "");
     }
   } catch {
-    /* use fallback */
+    /* not discovered yet: use the default */
   }
-  return (process.env.DRONE_CONTROL_URL || "http://127.0.0.1:8765").replace(/\/$/, "");
+  return (process.env.DRONE_CONTROL_URL || FALLBACK).replace(/\/$/, "");
 }
 
 module.exports = { getControlUrl, saveControlUrl };

@@ -1,97 +1,75 @@
 const { expect, test } = require("@playwright/test");
-const { HOLD_MS, hold, pose, resetWorld, sleep, stopDrone } = require("./drone-api");
+const { hold, pose, recenter, sleep, stopDrone } = require("./support/drone-api");
+const {
+  STOPPED_SPEED_MPS,
+  distanceXY,
+  isNearCenter,
+  movedTowards,
+  speed,
+} = require("./support/flight-checks");
 
-const AXIS = {
-  a: { axis: "y", sign: 1 },
-  d: { axis: "y", sign: -1 },
-  w: { axis: "x", sign: 1 },
-  s: { axis: "x", sign: -1 },
-  r: { axis: "z", sign: 1 },
-  f: { axis: "z", sign: -1 },
-};
-
-function moved(start, samples, command, minimum = 0.25) {
-  const { axis, sign } = AXIS[command];
-  return samples.some((sample) => sign * (sample[axis] - start[axis]) >= minimum);
-}
-
-function nearCenter(sample) {
-  return Math.abs(sample.x) <= 1.25 && Math.abs(sample.y) <= 1.25;
-}
-
+// The tests share one running Gazebo world, so they must not overlap.
 test.describe.configure({ mode: "serial" });
 
 test.beforeEach(async ({ request }) => {
-  await resetWorld(request);
+  await recenter(request);
 });
 
 test.afterAll(async ({ request }) => {
   await stopDrone(request);
 });
 
-test("A: sinistra 5s e ritorno al centro", async ({ request }) => {
-  const start = await pose(request);
-  const samples = await hold(request, "a", HOLD_MS);
-  expect(moved(start, samples, "a")).toBeTruthy();
+/** Each directional command: hold it for 5 s, then check it went that way. */
+const DIRECTIONS = [
+  { command: "a", title: "A: sinistra" },
+  { command: "d", title: "D: destra" },
+  { command: "w", title: "W: avanti" },
+  { command: "s", title: "S: indietro" },
+  { command: "r", title: "R: su" },
+  { command: "f", title: "F: giu" },
+];
 
-  const towardEdge = await hold(request, "a", HOLD_MS);
-  const last = towardEdge.at(-1);
+for (const { command, title } of DIRECTIONS) {
+  test(`${title} (5s)`, async ({ request }) => {
+    const start = await pose(request);
+    const samples = await hold(request, command);
+    expect(movedTowards(command, start, samples)).toBeTruthy();
+  });
+}
+
+test("A: arrivato a fine percorso torna al centro", async ({ request }) => {
+  const start = await pose(request);
+  expect(movedTowards("a", start, await hold(request, "a"))).toBeTruthy();
+
+  // Keep pushing left until the flight envelope is exceeded: the bridge must
+  // then bring the drone back to the middle of the field on its own.
+  const atTheEdge = (await hold(request, "a")).at(-1);
   let parked = await pose(request);
-  for (let i = 0; i < 20; i += 1) {
-    if (nearCenter(parked) || (last && nearCenter(last))) {
+  for (let attempt = 0; attempt < 20 && !isNearCenter(parked); attempt += 1) {
+    if (isNearCenter(atTheEdge)) {
       break;
     }
     await sleep(250);
     parked = await pose(request);
   }
-  expect(nearCenter(parked) || (last && nearCenter(last))).toBeTruthy();
+  expect(isNearCenter(parked) || isNearCenter(atTheEdge)).toBeTruthy();
 });
 
-test("D: destra 5s", async ({ request }) => {
-  const start = await pose(request);
-  const samples = await hold(request, "d", HOLD_MS);
-  expect(moved(start, samples, "d")).toBeTruthy();
-});
-
-test("W: avanti 5s", async ({ request }) => {
-  const start = await pose(request);
-  const samples = await hold(request, "w", HOLD_MS);
-  expect(moved(start, samples, "w")).toBeTruthy();
-});
-
-test("S: indietro 5s", async ({ request }) => {
-  const start = await pose(request);
-  const samples = await hold(request, "s", HOLD_MS);
-  expect(moved(start, samples, "s")).toBeTruthy();
-});
-
-test("R: su 5s", async ({ request }) => {
-  const start = await pose(request);
-  const samples = await hold(request, "r", HOLD_MS);
-  expect(moved(start, samples, "r", 0.15)).toBeTruthy();
-});
-
-test("F: giu 5s", async ({ request }) => {
-  const start = await pose(request);
-  const samples = await hold(request, "f", HOLD_MS);
-  expect(moved(start, samples, "f", 0.15)).toBeTruthy();
-});
-
-test("rilascio: il drone si ferma", async ({ request }) => {
-  const samples = await hold(request, "w", HOLD_MS);
-  const moving = samples.at(-1);
+test("rilascio: il drone si ferma e non continua a scivolare", async ({ request }) => {
+  const whileMoving = (await hold(request, "w")).at(-1);
   await sleep(1500);
   const stopped = await pose(request);
-  const speed = Math.hypot(stopped.vx, stopped.vy, stopped.vz);
-  expect(speed).toBeLessThan(0.45);
-  expect(Math.hypot(stopped.x - moving.x, stopped.y - moving.y)).toBeLessThan(2);
+
+  expect(speed(stopped)).toBeLessThan(STOPPED_SPEED_MPS);
+  expect(distanceXY(whileMoving, stopped)).toBeLessThan(2);
 });
 
-test("Q e E cambiano lo yaw", async ({ request }) => {
+test("Q e E fanno ruotare il drone su se stesso", async ({ request }) => {
   const before = await pose(request);
-  const afterQ = (await hold(request, "q", HOLD_MS)).at(-1);
-  const afterE = (await hold(request, "e", HOLD_MS)).at(-1);
-  const changed =
+  const afterQ = (await hold(request, "q")).at(-1);
+  const afterE = (await hold(request, "e")).at(-1);
+
+  const rotated =
     Math.abs(afterQ.yaw - before.yaw) > 3 || Math.abs(afterE.yaw - afterQ.yaw) > 3;
-  expect(changed).toBeTruthy();
+  expect(rotated).toBeTruthy();
 });

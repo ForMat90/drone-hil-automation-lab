@@ -1,3 +1,4 @@
+// After the whole suite: release the command and park the drone at the center.
 const http = require("http");
 const { getControlUrl } = require("./control-url");
 

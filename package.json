@@ -1,8 +1,11 @@
 {
   "name": "drone-hil-automation-lab",
+  "version": "1.0.0",
   "private": true,
+  "description": "End-to-end tests that fly a simulated drone in Gazebo through an HTTP/ROS 2 bridge",
   "scripts": {
-    "test": "playwright test --headed"
+    "test": "playwright test",
+    "test:unit": "python -m pytest"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0"
