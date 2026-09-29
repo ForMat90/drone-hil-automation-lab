@@ -1,0 +1,20 @@
+# Node / Playwright
+node_modules/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Runtime locale (pid, log, url del ponte)
+.run/
+
+# Sistema
+.DS_Store
+Thumbs.db

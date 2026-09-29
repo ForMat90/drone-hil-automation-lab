@@ -1,0 +1,10 @@
+{
+  "name": "drone-hil-automation-lab",
+  "private": true,
+  "scripts": {
+    "test": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

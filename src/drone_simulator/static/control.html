@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>Drone control</title>
+  <style>
+    body { font-family: Segoe UI, sans-serif; background: #06131f; color: #e2e8f0; margin: 0; padding: 24px; }
+    h1 { margin-top: 0; }
+    .grid { display: grid; grid-template-columns: repeat(3, 120px); gap: 10px; margin: 16px 0 24px; }
+    button {
+      height: 64px; border: 0; border-radius: 8px; background: #0f172a; color: #f8fafc;
+      font-weight: 700; cursor: pointer;
+    }
+    button:active, button.held { background: #1d4ed8; }
+    #pose { font-size: 18px; }
+    p { max-width: 640px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <h1>Comandi drone</h1>
+  <p>Tieni premuto un pulsante o un tasto. Al rilascio il drone si ferma. Gazebo resta aperto in parallelo.</p>
+  <div id="pose" data-testid="pose">x=0.00 y=0.00 z=0.00</div>
+  <div class="grid">
+    <span></span>
+    <button type="button" data-testid="command-w" data-command="w">W avanti</button>
+    <span></span>
+    <button type="button" data-testid="command-a" data-command="a">A sinistra</button>
+    <button type="button" data-testid="command-x" data-command="x">X stop</button>
+    <button type="button" data-testid="command-d" data-command="d">D destra</button>
+    <span></span>
+    <button type="button" data-testid="command-s" data-command="s">S indietro</button>
+    <span></span>
+    <button type="button" data-testid="command-r" data-command="r">R su</button>
+    <button type="button" data-testid="command-f" data-command="f">F giu</button>
+    <button type="button" data-testid="command-q" data-command="q">Q yaw L</button>
+    <button type="button" data-testid="command-e" data-command="e">E yaw R</button>
+  </div>
+  <script>
+    const poseEl = document.querySelector('[data-testid="pose"]');
+    let held = null;
+
+    async function send(path, body) {
+      await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+    }
+
+    async function hold(command) {
+      held = command;
+      document.querySelectorAll("button[data-command]").forEach((btn) => {
+        btn.classList.toggle("held", btn.dataset.command === command && command !== "x");
+      });
+      if (command === "x") {
+        await send("/api/release", {});
+        return;
+      }
+      await send("/api/hold", { command });
+    }
+
+    async function release() {
+      held = null;
+      document.querySelectorAll("button[data-command]").forEach((btn) => btn.classList.remove("held"));
+      await send("/api/release", {});
+    }
+
+    document.querySelectorAll("button[data-command]").forEach((button) => {
+      const command = button.dataset.command;
+      const press = (event) => {
+        event.preventDefault();
+        hold(command);
+      };
+      button.addEventListener("pointerdown", press);
+      button.addEventListener("mousedown", press);
+      button.addEventListener("pointerup", () => release());
+      button.addEventListener("mouseup", () => release());
+      button.addEventListener("pointercancel", () => release());
+    });
+
+    window.addEventListener("keydown", (event) => {
+      const key = event.key.toLowerCase();
+      if ("wasdrfqex".includes(key) && !event.repeat) hold(key);
+    });
+    window.addEventListener("keyup", (event) => {
+      const key = event.key.toLowerCase();
+      if ("wasdrfqex".includes(key)) release();
+    });
+
+    async function refreshPose() {
+      const response = await fetch("/api/pose");
+      const text = await response.text();
+      const pose = JSON.parse(text.replace(/\bNaN\b/g, "0").replace(/\b-?Infinity\b/g, "0"));
+      poseEl.textContent =
+        `x=${pose.x.toFixed(2)} y=${pose.y.toFixed(2)} z=${pose.z.toFixed(2)} ` +
+        `vx=${pose.vx.toFixed(2)} yaw=${pose.yaw.toFixed(0)}`;
+      poseEl.dataset.x = pose.x;
+      poseEl.dataset.y = pose.y;
+      poseEl.dataset.z = pose.z;
+      poseEl.dataset.vx = pose.vx;
+      poseEl.dataset.vy = pose.vy;
+      poseEl.dataset.vz = pose.vz;
+      poseEl.dataset.yaw = pose.yaw;
+    }
+    setInterval(refreshPose, 150);
+    refreshPose();
+  </script>
+</body>
+</html>
