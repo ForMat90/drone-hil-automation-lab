@@ -4,8 +4,9 @@
 
 [Versione italiana](README.md) · [Getting started](#what-you-need-installed) · [How the pieces talk](#how-the-pieces-talk-to-each-other)
 
-<!-- Replace with the demo GIF: Gazebo on the left, test terminal on the right. -->
+<!-- TODO: record the GIF (Gazebo on the left, test terminal on the right), save it as docs/demo.gif and uncomment the line below.
 ![Demo: the drone flown by the automated tests in Gazebo](docs/demo.gif)
+-->
 
 I run `npx playwright test` and the drone flies on its own inside the 3D scene: left, right, up, down, rotating — and every manoeuvre is checked by an assertion that verifies the command did what it promised.
 

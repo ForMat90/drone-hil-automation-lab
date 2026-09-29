@@ -4,8 +4,9 @@
 
 [English version](README.en.md) · [Come avviare](#cosa-serve-installato) · [Come comunicano i pezzi](#come-parlano-tra-loro-i-pezzi)
 
-<!-- Sostituisci con la GIF della demo: Gazebo a sinistra, terminale dei test a destra. -->
+<!-- TODO: registrare la GIF (Gazebo a sinistra, terminale dei test a destra), salvarla in docs/demo.gif e togliere i commenti dalla riga sotto.
 ![Demo: il drone eseguito dai test automatici in Gazebo](docs/demo.gif)
+-->
 
 Lancio `npx playwright test` e il drone si muove da solo nella scena 3D: va a sinistra, a destra, sale, scende, ruota, e a ogni manovra un assert verifica che abbia fatto davvero quello che il comando prometteva.
 
