@@ -1,0 +1,21 @@
+# Gazebo, ROS 2 and the bridge run in the container; the Playwright tests stay
+# on the host and talk to the published port, exactly as they do with WSL.
+services:
+  drone:
+    build: .
+    image: drone-hil-automation-lab
+    container_name: drone-lab
+    ports:
+      - "8765:8765"
+    # Healthy means Gazebo is up and the drone is reachable: the entrypoint only
+    # starts the bridge once the world publishes odometry.
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/pose', timeout=2)
+      interval: 5s
+      timeout: 5s
+      retries: 40
+    stop_grace_period: 5s

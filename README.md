@@ -2,9 +2,9 @@
 
 **Test automatici end-to-end su un drone simulato in Gazebo, pilotato via ROS 2 e verificato con Playwright.**
 
-[![unit tests](https://github.com/ForMat90/drone-hil-automation-lab/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/ForMat90/drone-hil-automation-lab/actions/workflows/unit-tests.yml)
+[![tests](https://github.com/ForMat90/drone-hil-automation-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/ForMat90/drone-hil-automation-lab/actions/workflows/tests.yml)
 
-[English version](README.en.md) · [Come avviare](#cosa-serve-installato) · [Come comunicano i pezzi](#come-parlano-tra-loro-i-pezzi)
+[English version](README.en.md) · [Provarlo con Docker](#provarlo-con-docker) · [Come avviare](#cosa-serve-installato) · [Come comunicano i pezzi](#come-parlano-tra-loro-i-pezzi)
 
 ![Demo: il drone eseguito dai test automatici in Gazebo](docs/demo.gif)
 
@@ -32,6 +32,12 @@ npx playwright test  ──HTTP──▶  ponte Python (:8765)  ──ROS 2─�
 
 `Playwright` · `ROS 2 Humble` · `Gazebo 11` · `Python` · `JavaScript` · `pytest` · `WSL2`
 
+### Come è stato costruito
+
+Questo è un progetto di studio: sto imparando come funzionano i simulatori di volo e come si testa un sistema fisico, non solo una pagina web. L'ho costruito **usando l'AI come assistente** (Cursor), che per me è parte normale del lavoro di oggi: la uso per esplorare tecnologie che non conosco ancora e per andare più veloce sulla parte meccanica.
+
+Le decisioni però sono mie e verificate a mano: come separare il pilotaggio manuale dai test automatici, perché gli assert controllano una direzione invece di un valore esatto, come tarare le forze perché il drone resti governabile. Ogni cosa scritta qui l'ho eseguita davvero — la GIF sopra è una registrazione di una run reale dei test, non un mockup.
+
 ---
 
 Il resto di questa pagina è la guida pratica: come installare, come pilotare il drone a mano e come lanciare i test.
@@ -56,6 +62,9 @@ drone-hil-automation-lab/
 ├─ scripts/                      comandi di avvio (.ps1 per Windows, .sh per Linux)
 ├─ gazebo/worlds/drone_lab.world il mondo 3D: drone, prato, alberi, capannone, recinzione
 ├─ tests/                        unit test pytest
+├─ Dockerfile                    immagine con ROS 2, Gazebo e il ponte, headless
+├─ docker/entrypoint.sh          avvia il mondo e poi il ponte, nell'ordine giusto
+├─ docker-compose.yml            un comando per avere il drone in ascolto sulla 8765
 └─ docs/                         demo e guida di installazione di ROS/Gazebo
 ```
 
@@ -86,6 +95,34 @@ python -m pip install -r requirements.txt
 ```
 
 La guida dettagliata di ROS/Gazebo è in [docs/REAL_GAZEBO_SETUP.md](docs/REAL_GAZEBO_SETUP.md).
+
+---
+
+## Provarlo con Docker
+
+Se vuoi solo provare i test, o vedere il programma girare, non devi installare ROS e Gazebo: sono già dentro l'immagine. Servono solo **Docker e Node**.
+
+```powershell
+git clone https://github.com/ForMat90/drone-hil-automation-lab.git
+cd drone-hil-automation-lab
+npm install
+docker compose up -d --build     # la prima volta scarica ROS e Gazebo: qualche minuto
+npx playwright test
+docker compose down
+```
+
+Il comando di avvio ritorna solo quando il container è `healthy`, che vuol dire che Gazebo ha caricato il mondo e il drone risponde. Per controllarlo a mano:
+
+```powershell
+npm run drone:pose     # {"x": 0.0, "y": 0.0, "z": 3.0, ...} = il drone c'è
+npm run drone:logs     # i log di Gazebo e del ponte, se qualcosa non torna
+```
+
+La prova vera che funziona sono i nove test verdi di `npx playwright test`.
+
+Il container pubblica il ponte su `http://127.0.0.1:8765`, lo stesso indirizzo che i test usano quando Gazebo gira in WSL: i test sono gli stessi file, non c'è una variante per Docker.
+
+Qui Gazebo gira headless, quindi **non si vede la finestra 3D**: i nove test passano e il risultato lo leggi nel terminale. Per vedere il drone muoversi nella scena, come nella GIF in cima, serve WSL con la finestra di Gazebo — sono i tre passi qui sotto.
 
 ---
 
@@ -228,7 +265,9 @@ Ogni comando resta premuto **5 secondi**: abbastanza per vedere il movimento a o
 
 ### Unit test — [tests/test_drone_simulator.py](tests/test_drone_simulator.py)
 
-Controllano la logica pura, senza Gazebo: stati del drone (fermo, armato, decollo, volo, atterraggio, emergenza), decollo, atterraggio, stop di emergenza, i limiti dell'area e il fatto che un comando tenuto premuto si fermi al rilascio. Girano anche su GitHub a ogni push (è il badge in cima alla pagina).
+Controllano la logica pura, senza Gazebo: stati del drone (fermo, armato, decollo, volo, atterraggio, emergenza), decollo, atterraggio, stop di emergenza, i limiti dell'area e il fatto che un comando tenuto premuto si fermi al rilascio.
+
+A ogni push su GitHub girano **entrambi i livelli**: gli unit test, e i test end-to-end contro il container Docker con Gazebo headless. È il badge in cima alla pagina.
 
 ---
 
@@ -250,6 +289,8 @@ Controllano la logica pura, senza Gazebo: stati del drone (fermo, armato, decoll
 | [playwright.config.js](playwright.config.js) | configurazione dei test (timeout, ordine, report) |
 | [tests/test_drone_simulator.py](tests/test_drone_simulator.py) | unit test della logica |
 | [gazebo/worlds/drone_lab.world](gazebo/worlds/drone_lab.world) | il mondo 3D |
+| [Dockerfile](Dockerfile) · [docker/entrypoint.sh](docker/entrypoint.sh) | ROS 2, Gazebo e il ponte in un'immagine headless |
+| [.github/workflows/tests.yml](.github/workflows/tests.yml) | CI: unit test, e test end-to-end col container |
 
 Se vuoi cambiare quanto è veloce o reattivo il drone, tocca **un solo file**: `src/drone_simulator/flight_control.py`. Contiene due gruppi di impostazioni: quelle "a pressione continua" usate dal ponte e dai test, e quelle "a impulso" usate dalla tastiera, che hanno bisogno di una spinta più forte perché ogni tasto premuto vale una spinta sola.
 
@@ -292,6 +333,6 @@ Cose che si possono aggiungere per rendere il progetto più solido:
 - **Un test che fallisce apposta**, per essere sicuri che i controlli funzionino davvero e non passino sempre.
 - **Test di collisione**: verificare che il drone non attraversi il capannone o gli alberi.
 - **Test di atterraggio sulla piazzola**, con tolleranza sulla precisione.
-- **End-to-end anche in CI**: oggi su GitHub girano solo gli unit test, perché i test E2E hanno bisogno di Gazebo aperto. Si può far girare Gazebo senza finestra (`gui:=false`) su un server dedicato.
-- **Un solo comando di avvio** che apra Gazebo, il ponte e i test in sequenza, per chi non vuole gestire tre terminali.
+- **Cache dell'immagine in CI**: oggi il passaggio più lento della pipeline è costruire l'immagine, perché si riscarica ROS e Gazebo ogni volta. Si può pubblicare l'immagine su un registry e riusarla.
+- **Un solo comando di avvio anche per la parte con la finestra 3D**: con Docker basta `docker compose up`, ma la strada WSL vuole ancora tre terminali.
 - **Un autopilota vero (PX4/SITL)** se in futuro servisse simulare anche il firmware di volo: più realistico, ma molto più pesante da installare.

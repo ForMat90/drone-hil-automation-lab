@@ -35,7 +35,11 @@ function poseReady(baseUrl) {
 
 /** Depending on the WSL networking mode the bridge answers on localhost or on the WSL IP. */
 function candidateUrls() {
-  const urls = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`];
+  // An explicit URL wins: it is how the tests are pointed at the Docker
+  // container or at a bridge running on another machine.
+  const explicit = process.env.DRONE_CONTROL_URL;
+  const urls = explicit ? [explicit.replace(/\/$/, "")] : [];
+  urls.push(`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`);
   try {
     const ip = execSync(`wsl.exe -d ${DISTRO} -- hostname -I`, { encoding: "utf8" })
       .trim()

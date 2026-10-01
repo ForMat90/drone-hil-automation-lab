@@ -5,7 +5,11 @@
   "description": "End-to-end tests that fly a simulated drone in Gazebo through an HTTP/ROS 2 bridge",
   "scripts": {
     "test": "playwright test",
-    "test:unit": "python -m pytest"
+    "test:unit": "python -m pytest",
+    "drone:up": "docker compose up -d --wait",
+    "drone:down": "docker compose down",
+    "drone:logs": "docker compose logs -f",
+    "drone:pose": "node -e \"fetch('http://127.0.0.1:8765/api/pose').then(r=>r.text()).then(console.log)\""
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0"
