@@ -2,6 +2,8 @@
 set -eo pipefail
 
 source /opt/ros/humble/setup.bash
+# Plugins built in the image, because the Humble debs no longer exist.
+source /opt/gazebo_ros_ws/install/setup.bash
 
 # DRONE_GUI=true also opens the Gazebo window. It needs the host graphics
 # channel mounted into the container: see docker-compose.gui.yml.
