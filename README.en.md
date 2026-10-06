@@ -100,35 +100,42 @@ The detailed ROS/Gazebo guide is in [docs/REAL_GAZEBO_SETUP.md](docs/REAL_GAZEBO
 
 ## Try it with Docker
 
-If you just want to run the tests, or see the thing work, you do not have to install ROS and Gazebo: they are already inside the image. You only need **Docker and Node**.
+ROS and Gazebo are already inside the image. The PC only needs three programs, once:
+
+1. [Docker Desktop](https://www.docker.com/products/docker-desktop/). Install it, open it, and wait until the bottom left says the engine is running.
+2. [Node.js LTS](https://nodejs.org/). When the install finishes, open Command Prompt and type `node -v`: it must print a version number.
+3. [Git for Windows](https://git-scm.com/download/win). This is only for downloading the project.
+
+Open **Command Prompt** and download the project. The `npm run` commands work only inside this folder: the prompt line must end with `drone-hil-automation-lab>`.
 
 ```powershell
+cd %USERPROFILE%
 git clone https://github.com/ForMat90/drone-hil-automation-lab.git
 cd drone-hil-automation-lab
 npm install
 ```
 
-Then, in this order. The first command builds the image if it is not there yet, starts the container and opens the Gazebo window. It returns only when the drone answers.
+In this same window, this opens Gazebo. The first time takes several minutes, because it builds the image. When the line where you can type comes back, the 3D window is open. Reuse this prompt: do not close it, and you do not need a second one.
 
 ```powershell
 npm run drone:gazebo
 ```
 
-In a second terminal, fly by hand. The keys are the usual ones (`w` `s` `a` `d` `r` `f` `q` `e`, `x` stops, `Ctrl+C` quits). Gazebo stays open.
+Right after that, in the same prompt, manual flight starts. While this command is running the keys move the drone: `w` `s` `a` `d` `r` `f` `q` `e`, `x` stops. `Ctrl+C` closes only the flight. Gazebo stays open.
 
 ```powershell
 npm run drone:manual
 ```
 
-Quit manual flight with `Ctrl+C`, then run the automated tests. They use the same bridge, so do not start them while you are still flying.
+Then, still in the same prompt, the automated tests start. Do not start them while `drone:manual` is still running.
 
 ```powershell
 npm run drone:test
 ```
 
-To shut everything down: `npm run drone:down`.
+To shut Gazebo down: `npm run drone:down`.
 
-The container publishes the bridge on `http://127.0.0.1:8765`, the same address the tests use. No GPU reaches the container, so the scene is visible but heavier than the WSL route described in the three steps below.
+If you open a new Command Prompt later, enter the folder first (`cd %USERPROFILE%\drone-hil-automation-lab`), then run the command again. No GPU reaches the container, so the scene is visible but heavier than the WSL route described in the three steps below.
 
 ---
 
