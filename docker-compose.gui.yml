@@ -1,0 +1,16 @@
+# Adds the Gazebo window on top of the headless setup, through the WSLg
+# graphics channel that Docker Desktop exposes on Windows:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gui.yml up -d --wait
+#
+# No GPU reaches the container, so the scene is rendered in software: it is
+# slower than the WSL route, but nothing has to be installed on the machine.
+services:
+  drone:
+    environment:
+      DRONE_GUI: "true"
+      DISPLAY: ":0"
+      XDG_RUNTIME_DIR: /mnt/wslg/runtime-dir
+    volumes:
+      - /run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix
+      - /run/desktop/mnt/host/wslg:/mnt/wslg

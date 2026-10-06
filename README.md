@@ -122,7 +122,14 @@ La prova vera che funziona sono i nove test verdi di `npx playwright test`.
 
 Il container pubblica il ponte su `http://127.0.0.1:8765`, lo stesso indirizzo che i test usano quando Gazebo gira in WSL: i test sono gli stessi file, non c'è una variante per Docker.
 
-Qui Gazebo gira headless, quindi **non si vede la finestra 3D**: i nove test passano e il risultato lo leggi nel terminale. Per vedere il drone muoversi nella scena, come nella GIF in cima, serve WSL con la finestra di Gazebo — sono i tre passi qui sotto.
+Di base Gazebo gira headless, quindi **non si vede la finestra 3D**: i nove test passano e il risultato lo leggi nel terminale. Su Windows però c'è un override che aggancia il canale grafico di WSLg e apre anche la finestra, così vedi il drone muoversi mentre i test girano:
+
+```powershell
+npm run drone:up:gui
+npx playwright test
+```
+
+Al container non arriva nessuna GPU, quindi la scena è renderizzata in software: si vede bene, ma è più pesante della strada con WSL descritta nei tre passi qui sotto.
 
 ---
 

@@ -3,16 +3,24 @@ set -eo pipefail
 
 source /opt/ros/humble/setup.bash
 
-# Headless: gzserver only. The world has no camera sensors and the drone flies
-# with gravity off, so the physics the tests measure is the same as with the GUI.
+# DRONE_GUI=true also opens the Gazebo window. It needs the host graphics
+# channel mounted into the container: see docker-compose.gui.yml.
+gui="${DRONE_GUI:-false}"
+if [[ "${gui}" == "true" ]]; then
+  # No GPU is exposed to the container, so Ogre has to render in software.
+  export LIBGL_ALWAYS_SOFTWARE=1
+  export QT_X11_NO_MITSHM=1
+  export OGRE_RTT_MODE="${OGRE_RTT_MODE:-Copy}"
+fi
+
 ros2 launch gazebo_ros gazebo.launch.py \
   world:=/app/gazebo/worlds/drone_lab.world \
-  gui:=false \
+  gui:="${gui}" \
   pause:=false &
 
 # The tests read "the bridge answers" as "the world is ready", so hold the
 # bridge back until Gazebo actually publishes the drone odometry.
-for _ in $(seq 90); do
+for _ in $(seq 120); do
   if ros2 topic list 2>/dev/null | grep -qx '/drone/odom'; then
     break
   fi
