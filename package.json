@@ -6,6 +6,9 @@
   "scripts": {
     "test": "playwright test",
     "test:unit": "python -m pytest",
+    "drone:gazebo": "docker compose -f docker-compose.yml -f docker-compose.gui.yml up -d --build --wait",
+    "drone:manual": "node scripts/docker_manual.js",
+    "drone:test": "playwright test",
     "drone:up": "docker compose up -d --wait",
     "drone:up:gui": "docker compose -f docker-compose.yml -f docker-compose.gui.yml up -d --wait",
     "drone:down": "docker compose down",

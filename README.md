@@ -106,30 +106,29 @@ Se vuoi solo provare i test, o vedere il programma girare, non devi installare R
 git clone https://github.com/ForMat90/drone-hil-automation-lab.git
 cd drone-hil-automation-lab
 npm install
-docker compose up -d --build     # la prima volta scarica ROS e Gazebo: qualche minuto
-npx playwright test
-docker compose down
 ```
 
-Il comando di avvio ritorna solo quando il container è `healthy`, che vuol dire che Gazebo ha caricato il mondo e il drone risponde. Per controllarlo a mano:
+Poi, in quest'ordine. Il primo comando costruisce l'immagine se non c'è già, avvia il container e apre la finestra di Gazebo. Ritorna solo quando il drone risponde.
 
 ```powershell
-npm run drone:pose     # {"x": 0.0, "y": 0.0, "z": 3.0, ...} = il drone c'è
-npm run drone:logs     # i log di Gazebo e del ponte, se qualcosa non torna
+npm run drone:gazebo
 ```
 
-La prova vera che funziona sono i nove test verdi di `npx playwright test`.
-
-Il container pubblica il ponte su `http://127.0.0.1:8765`, lo stesso indirizzo che i test usano quando Gazebo gira in WSL: i test sono gli stessi file, non c'è una variante per Docker.
-
-Di base Gazebo gira headless, quindi **non si vede la finestra 3D**: i nove test passano e il risultato lo leggi nel terminale. Su Windows però c'è un override che aggancia il canale grafico di WSLg e apre anche la finestra, così vedi il drone muoversi mentre i test girano:
+In un secondo terminale, il volo a mano. I tasti sono gli stessi di sempre (`w` `s` `a` `d` `r` `f` `q` `e`, `x` ferma, `Ctrl+C` esce). Gazebo resta aperto.
 
 ```powershell
-npm run drone:up:gui
-npx playwright test
+npm run drone:manual
 ```
 
-Al container non arriva nessuna GPU, quindi la scena è renderizzata in software: si vede bene, ma è più pesante della strada con WSL descritta nei tre passi qui sotto.
+Chiudi il volo a mano con `Ctrl+C`, poi i test automatici. Usano lo stesso ponte, quindi non vanno lanciati mentre stai pilotando.
+
+```powershell
+npm run drone:test
+```
+
+Per spegnere tutto: `npm run drone:down`.
+
+Il container pubblica il ponte su `http://127.0.0.1:8765`, lo stesso indirizzo dei test. Al container non arriva una GPU: la scena si vede, ma è più pesante della strada con WSL descritta nei tre passi qui sotto.
 
 ---
 

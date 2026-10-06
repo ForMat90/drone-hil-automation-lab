@@ -106,30 +106,29 @@ If you just want to run the tests, or see the thing work, you do not have to ins
 git clone https://github.com/ForMat90/drone-hil-automation-lab.git
 cd drone-hil-automation-lab
 npm install
-docker compose up -d --build     # the first build downloads ROS and Gazebo: a few minutes
-npx playwright test
-docker compose down
 ```
 
-The start command only returns once the container is `healthy`, which means Gazebo has loaded the world and the drone answers. To check by hand:
+Then, in this order. The first command builds the image if it is not there yet, starts the container and opens the Gazebo window. It returns only when the drone answers.
 
 ```powershell
-npm run drone:pose     # {"x": 0.0, "y": 0.0, "z": 3.0, ...} = the drone is there
-npm run drone:logs     # Gazebo and bridge logs, if something looks off
+npm run drone:gazebo
 ```
 
-The real proof that it works is the nine green tests from `npx playwright test`.
-
-The container publishes the bridge on `http://127.0.0.1:8765`, the same address the tests use when Gazebo runs in WSL: the tests are the very same files, there is no Docker-specific variant.
-
-By default Gazebo runs headless, so **there is no 3D window**: the nine tests pass and you read the result in the terminal. On Windows, though, an override wires in the WSLg graphics channel and opens the window too, so you can watch the drone move while the tests run:
+In a second terminal, fly by hand. The keys are the usual ones (`w` `s` `a` `d` `r` `f` `q` `e`, `x` stops, `Ctrl+C` quits). Gazebo stays open.
 
 ```powershell
-npm run drone:up:gui
-npx playwright test
+npm run drone:manual
 ```
 
-No GPU reaches the container, so the scene is rendered in software: it looks fine, but it is heavier than the WSL route described in the three steps below.
+Quit manual flight with `Ctrl+C`, then run the automated tests. They use the same bridge, so do not start them while you are still flying.
+
+```powershell
+npm run drone:test
+```
+
+To shut everything down: `npm run drone:down`.
+
+The container publishes the bridge on `http://127.0.0.1:8765`, the same address the tests use. No GPU reaches the container, so the scene is visible but heavier than the WSL route described in the three steps below.
 
 ---
 
